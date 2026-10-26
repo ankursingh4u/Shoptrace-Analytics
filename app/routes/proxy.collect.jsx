@@ -16,15 +16,15 @@ import {
   timezoneToCountry,
 } from "../lib/ingest.server";
 
+const MAX_BODY_BYTES = 512 * 1024;
+
 async function readJson(request) {
   try {
-    return await request.json();
+    const raw = await request.text();
+    if (!raw || raw.length > MAX_BODY_BYTES) return null;
+    return JSON.parse(raw);
   } catch {
-    try {
-      return JSON.parse(await request.text());
-    } catch {
-      return null;
-    }
+    return null;
   }
 }
 
@@ -106,8 +106,17 @@ export const action = async ({ request }) => {
   }
 
   if (!existing) {
-    await prisma.visitorSession.create({
-      data: {
+    // Upsert instead of create: two batches from the same fresh session can
+    // race past the findUnique above, and the loser must not 500.
+    await prisma.visitorSession.upsert({
+      where: { id: sid },
+      update: {
+        lastSeenAt: now,
+        pageCount: { increment: pageviews.length },
+        ...(exitPage ? { exitPage } : {}),
+        ...flags,
+      },
+      create: {
         id: sid,
         shop,
         visitorId: body.vid,
