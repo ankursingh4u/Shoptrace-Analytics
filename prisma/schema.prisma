@@ -1,0 +1,155 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Session {
+  id            String    @id
+  shop          String
+  state         String
+  isOnline      Boolean   @default(false)
+  scope         String?
+  expires       DateTime?
+  accessToken   String
+  userId        BigInt?
+  firstName     String?
+  lastName      String?
+  email         String?
+  accountOwner  Boolean   @default(false)
+  locale        String?
+  collaborator         Boolean?  @default(false)
+  emailVerified        Boolean?  @default(false)
+  refreshToken         String?
+  refreshTokenExpires  DateTime?
+}
+
+// Per-shop tracker configuration, surfaced to the storefront via /proxy/boot.
+model ShopSettings {
+  id                  String   @id @default(cuid())
+  shop                String   @unique
+  trackingEnabled     Boolean  @default(true)
+  recordingEnabled    Boolean  @default(true)
+  // Percentage (0-100) of sessions that get a session recording.
+  recordingSampleRate Int      @default(100)
+  // Max seconds of rrweb recording accepted per session, bounds storage.
+  recordingMaxSeconds Int      @default(300)
+  // Days of visitor data kept; older sessions are purged opportunistically.
+  retentionDays       Int      @default(30)
+  // Newline-separated path prefixes the tracker should ignore.
+  excludePaths        String   @default("")
+  lastCleanupAt       DateTime?
+  updatedAt           DateTime @updatedAt
+}
+
+// One storefront visit (a browser session, 30-minute inactivity window).
+// The id is generated client-side; every write re-checks the shop so one
+// shop's payload can never touch another shop's row.
+model VisitorSession {
+  id              String   @id
+  shop            String
+  visitorId       String
+  startedAt       DateTime @default(now())
+  lastSeenAt      DateTime @default(now())
+  durationSec     Int      @default(0)
+  pageCount       Int      @default(0)
+  device          String   @default("desktop") // desktop | mobile | tablet
+  browser         String   @default("")
+  os              String   @default("")
+  language        String   @default("")
+  country         String   @default("")
+  referrer        String   @default("")
+  landingPage     String   @default("")
+  exitPage        String   @default("")
+  screenW         Int      @default(0)
+  screenH         Int      @default(0)
+  hasRecording    Boolean  @default(false)
+  viewedProduct   Boolean  @default(false)
+  addedToCart     Boolean  @default(false)
+  reachedCheckout Boolean  @default(false)
+
+  @@index([shop, startedAt])
+  @@index([shop, visitorId])
+}
+
+model PageView {
+  id           String   @id @default(cuid())
+  shop         String
+  sessionId    String
+  path         String
+  title        String   @default("")
+  enteredAt    DateTime @default(now())
+  timeOnPage   Int      @default(0) // seconds
+  maxScrollPct Int      @default(0)
+
+  @@index([shop, path])
+  @@index([shop, enteredAt])
+  @@index([sessionId])
+}
+
+// A single click, with coordinates normalised to the document size so clicks
+// from different viewports can be aggregated into one heatmap.
+model ClickEvent {
+  id        String   @id @default(cuid())
+  shop      String
+  sessionId String
+  path      String
+  xNorm     Float
+  yNorm     Float
+  docW      Int
+  docH      Int
+  selector  String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([shop, path])
+  @@index([shop, createdAt])
+}
+
+// Gzipped batch of rrweb events for one session, in arrival order.
+model RecordingChunk {
+  id        String   @id @default(cuid())
+  shop      String
+  sessionId String
+  seq       Int
+  data      Bytes
+  createdAt DateTime @default(now())
+
+  @@index([sessionId, seq])
+  @@index([shop, createdAt])
+}
+
+model Survey {
+  id           String   @id @default(cuid())
+  shop         String
+  name         String
+  question     String
+  // text | rating | choice
+  type         String   @default("text")
+  // JSON array of strings, used when type = choice.
+  options      String   @default("[]")
+  // active | paused
+  status       String   @default("active")
+  // Seconds after page load before the widget appears.
+  triggerDelay Int      @default(5)
+  // Path prefix filter; empty shows on all pages.
+  pagePattern  String   @default("")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([shop, status])
+}
+
+model SurveyResponse {
+  id        String   @id @default(cuid())
+  shop      String
+  surveyId  String
+  sessionId String   @default("")
+  answer    String
+  createdAt DateTime @default(now())
+
+  @@index([surveyId])
+  @@index([shop, createdAt])
+}

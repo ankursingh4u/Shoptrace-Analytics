@@ -1,0 +1,114 @@
+.index {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(900px 500px at 85% -10%, rgba(110, 86, 207, 0.35) 0%, rgba(110, 86, 207, 0) 60%),
+    linear-gradient(130deg, #0b1626 0%, #0d3b4f 55%, #0c8a70 130%);
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+  padding: 24px;
+}
+
+.content {
+  max-width: 560px;
+  color: #fff;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  padding: 4px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 18px;
+}
+
+.heading {
+  margin: 0 0 12px;
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.text {
+  margin: 0 0 24px;
+  font-size: 15px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.form {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+}
+
+.label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+  flex: 1;
+  min-width: 240px;
+}
+
+.input {
+  padding: 11px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 14px;
+  outline: none;
+}
+.input::placeholder { color: rgba(255, 255, 255, 0.45); }
+.input:focus { border-color: #4fd8ba; }
+
+.button {
+  padding: 11px 22px;
+  border-radius: 10px;
+  border: none;
+  background: #0c8a70;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.button:hover { background: #11a98a; }
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.78);
+}
+.list li {
+  padding-left: 26px;
+  position: relative;
+}
+.list li::before {
+  content: "✓";
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: #4fd8ba;
+  font-weight: 700;
+}
+.list strong { color: #fff; }

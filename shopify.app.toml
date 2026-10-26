@@ -1,0 +1,37 @@
+name = "Shoptrace Analytics"
+client_id = "2de9c0aa0bc0d5de75bb0ee12e0dc98c"
+application_url = "https://shoptrace.onkra.online"
+embedded = true
+
+[access_scopes]
+scopes = "write_app_proxy"
+
+[access.admin]
+direct_api_mode = "online"
+
+[auth]
+redirect_urls = [
+  "https://shoptrace.onkra.online/auth/callback",
+  "https://shoptrace.onkra.online/auth/shopify/callback",
+  "https://shoptrace.onkra.online/api/auth/callback"
+]
+
+[webhooks]
+api_version = "2026-04"
+
+[[webhooks.subscriptions]]
+topics = [ "app/uninstalled" ]
+compliance_topics = [ "customers/redact", "customers/data_request", "shop/redact" ]
+uri = "https://shoptrace.onkra.online/webhooks/app/uninstalled"
+
+[app_proxy]
+url = "https://shoptrace.onkra.online/proxy"
+prefix = "apps"
+subpath = "shoptrace"
+
+[pos]
+embedded = false
+
+[build]
+automatically_update_urls_on_dev = false
+include_config_on_deploy = true

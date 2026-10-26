@@ -1,0 +1,66 @@
+{
+  "name": "shoptrace-analytics",
+  "private": true,
+  "scripts": {
+    "build": "react-router build",
+    "dev": "shopify app dev",
+    "config:link": "shopify app config link",
+    "generate": "shopify app generate",
+    "deploy": "shopify app deploy",
+    "config:use": "shopify app config use",
+    "env": "shopify app env",
+    "start": "node ./server.js",
+    "docker-start": "npm run setup && npm run start",
+    "setup": "prisma db push --accept-data-loss",
+    "shopify": "shopify",
+    "prisma": "prisma",
+    "vite": "vite"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=20.19 <22 || >=22.12"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.16.3",
+    "@react-router/dev": "^7.12.0",
+    "@react-router/express": "^7.12.0",
+    "@react-router/fs-routes": "^7.12.0",
+    "@react-router/node": "^7.12.0",
+    "@react-router/serve": "^7.12.0",
+    "@shopify/app-bridge-react": "^4.2.4",
+    "@shopify/polaris": "^13.9.5",
+    "@shopify/polaris-icons": "^9.3.1",
+    "@shopify/shopify-app-react-router": "^1.2.0",
+    "@shopify/shopify-app-session-storage-prisma": "^8.0.0",
+    "compression": "^1.8.2",
+    "express": "^4.22.3",
+    "isbot": "^5.1.31",
+    "morgan": "^1.12.1",
+    "prisma": "^6.16.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router": "^7.13.0",
+    "react-router-dom": "^7.13.0",
+    "rrweb-player": "2.2.0",
+    "vite-tsconfig-paths": "^5.1.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.8",
+    "@types/react": "^18.3.25",
+    "@types/react-dom": "^18.3.7",
+    "prettier": "^3.6.2",
+    "rrweb": "2.2.0",
+    "typescript": "^5.9.3",
+    "vite": "^6.3.6"
+  },
+  "workspaces": [
+    "extensions/*"
+  ],
+  "trustedDependencies": [
+    "@shopify/plugin-cloudflare"
+  ],
+  "overrides": {
+    "p-map": "^4.0.0"
+  },
+  "author": "shoptrace"
+}

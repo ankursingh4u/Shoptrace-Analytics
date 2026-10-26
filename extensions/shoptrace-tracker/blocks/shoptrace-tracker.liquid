@@ -1,0 +1,23 @@
+<script
+  src="{{ 'shoptrace.js' | asset_url }}"
+  defer
+  data-shoptrace
+  data-proxy="{{ block.settings.proxy_path | default: '/apps/shoptrace' }}"
+  data-record-src="{{ 'shoptrace-record.js' | asset_url }}"
+></script>
+
+{% schema %}
+{
+  "name": "Shoptrace Tracker",
+  "target": "body",
+  "settings": [
+    {
+      "type": "text",
+      "id": "proxy_path",
+      "label": "App proxy path",
+      "info": "Only change this if you customized the Shoptrace app proxy URL in Settings → Apps.",
+      "default": "/apps/shoptrace"
+    }
+  ]
+}
+{% endschema %}
