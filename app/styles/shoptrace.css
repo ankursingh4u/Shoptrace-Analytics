@@ -342,10 +342,31 @@
   overflow: hidden;
   background: #fff;
 }
-.st-heatmap-stage iframe {
-  width: 100%;
-  border: none;
+.st-snap-host {
+  overflow: hidden;
+}
+.st-snap-host iframe {
   display: block;
+  background: #fff;
+}
+.st-snap-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: repeating-linear-gradient(
+    45deg,
+    #f6f7f9,
+    #f6f7f9 14px,
+    #eef0f3 14px,
+    #eef0f3 28px
+  );
+}
+.st-snap-empty p {
+  max-width: 360px;
+  text-align: center;
+  color: var(--st-muted);
+  font-size: 13px;
+  padding: 16px;
 }
 .st-heatmap-overlay {
   position: absolute;

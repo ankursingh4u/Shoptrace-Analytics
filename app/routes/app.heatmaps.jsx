@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLoaderData, useSearchParams } from "react-router";
 import { Page } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
-import { getHeatmapData, getTrackedPages } from "../lib/analytics.server";
+import { getHeatmapData, getPageSnapshot, getTrackedPages } from "../lib/analytics.server";
 
 export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
@@ -12,8 +12,11 @@ export const loader = async ({ request }) => {
     : 30;
   const pages = await getTrackedPages(session.shop, days);
   const path = url.searchParams.get("path") || pages[0]?.path || "/";
-  const heatmap = await getHeatmapData(session.shop, path, days);
-  return { shop: session.shop, pages, path, days, heatmap };
+  const [heatmap, snapshot] = await Promise.all([
+    getHeatmapData(session.shop, path, days),
+    getPageSnapshot(session.shop, path),
+  ]);
+  return { pages, path, days, heatmap, snapshot };
 };
 
 // Classic thermal ramp for click density — a sequential multi-stop scale where
@@ -85,11 +88,14 @@ function drawScroll(canvas, scrollReach, width, height) {
 }
 
 export default function Heatmaps() {
-  const { shop, pages, path, days, heatmap } = useLoaderData();
+  const { pages, path, days, heatmap, snapshot } = useLoaderData();
   const [searchParams, setSearchParams] = useSearchParams();
   const [mode, setMode] = useState("clicks");
   const stageRef = useRef(null);
   const canvasRef = useRef(null);
+  const snapHostRef = useRef(null);
+  const [snapError, setSnapError] = useState(false);
+  const [snapReady, setSnapReady] = useState(false);
   const [stageW, setStageW] = useState(1000);
 
   // Median captured document shape decides the stage's aspect ratio so the
@@ -123,6 +129,53 @@ export default function Heatmaps() {
       drawScroll(canvasRef.current, heatmap.scrollReach, stageW, stageH);
     }
   }, [mode, heatmap, stageW, stageH]);
+
+  // Rebuild the recorded DOM into a sandboxed iframe (scripts never run; the
+  // sandbox attribute is set by rrweb-snapshot). Runs once per snapshot.
+  useEffect(() => {
+    const host = snapHostRef.current;
+    if (!host || !snapshot?.node) return;
+    let cancelled = false;
+    setSnapError(false);
+    setSnapReady(false);
+    (async () => {
+      try {
+        const { rebuildIntoSandboxedIframe, createCache, createMirror } = await import(
+          "rrweb-snapshot"
+        );
+        if (cancelled) return;
+        host.innerHTML = "";
+        rebuildIntoSandboxedIframe(snapshot.node, {
+          root: host,
+          cache: createCache(),
+          mirror: createMirror(),
+          iframeAttributes: { title: "Page snapshot", scrolling: "no" },
+        });
+        setSnapReady(true);
+      } catch (e) {
+        console.error("[heatmap] snapshot rebuild failed:", e);
+        if (!cancelled) setSnapError(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [snapshot]);
+
+  // Snapshot geometry: lay the iframe out at the recorded viewport width and
+  // scale it down to the stage, so clicks land where they happened.
+  const snapW = snapshot?.width || 1280;
+  const snapScale = stageW / snapW;
+  useEffect(() => {
+    const iframe = snapHostRef.current?.querySelector("iframe");
+    if (!iframe) return;
+    iframe.style.width = `${snapW}px`;
+    iframe.style.height = `${Math.ceil(stageH / snapScale)}px`;
+    iframe.style.transform = `scale(${snapScale})`;
+    iframe.style.transformOrigin = "top left";
+    iframe.style.border = "none";
+    iframe.style.pointerEvents = "none";
+  }, [snapReady, snapW, snapScale, stageH]);
 
   const setParam = (patch) => {
     const next = new URLSearchParams(searchParams);
@@ -195,13 +248,16 @@ export default function Heatmaps() {
       ) : (
         <>
           <div className="st-heatmap-stage" ref={stageRef} style={{ height: stageH, marginBottom: 10 }}>
-            <iframe
-              src={`https://${shop}${path}`}
-              title="Page preview"
-              style={{ height: stageH }}
-              sandbox="allow-same-origin"
-              scrolling="no"
-            />
+            {snapshot?.node && !snapError ? (
+              <div ref={snapHostRef} className="st-snap-host" style={{ height: stageH }} />
+            ) : (
+              <div className="st-snap-empty" style={{ height: stageH }}>
+                <p>
+                  No page snapshot captured yet — the background appears after a
+                  recorded visitor session on this page.
+                </p>
+              </div>
+            )}
             <canvas ref={canvasRef} className="st-heatmap-overlay" style={{ width: "100%", height: stageH }} />
           </div>
           <div className="st-legend" style={{ marginBottom: 20 }}>
@@ -218,7 +274,7 @@ export default function Heatmaps() {
                 </span>
                 <span style={{ color: "var(--st-muted)" }}>
                   Based on {heatmap.clicks.length.toLocaleString()} clicks across {heatmap.views.toLocaleString()} views.
-                  If the preview doesn’t load (password-protected store), the heat layer still shows click positions.
+                  The background is a snapshot from the latest session recording of this page.
                 </span>
               </>
             ) : (
