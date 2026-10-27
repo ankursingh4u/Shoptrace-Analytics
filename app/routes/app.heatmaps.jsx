@@ -95,6 +95,9 @@ export default function Heatmaps() {
   const [snapshot, setSnapshot] = useState(undefined);
   const [snapError, setSnapError] = useState(false);
   const [snapReady, setSnapReady] = useState(false);
+  // Measured size of the rebuilt snapshot document; the stage adopts its
+  // aspect ratio so every page renders at a consistent, correct scale.
+  const [snapDims, setSnapDims] = useState(null);
   const [stageW, setStageW] = useState(1000);
 
   // The snapshot is fetched separately (App Bridge adds the session token to
@@ -116,16 +119,17 @@ export default function Heatmaps() {
     };
   }, [path]);
 
-  // Median captured document shape decides the stage's aspect ratio so the
-  // normalised click coordinates land roughly where they happened.
+  // Stage aspect ratio: the rebuilt snapshot's real document shape when we
+  // have it; otherwise the median captured document shape from click data.
   const aspect = useMemo(() => {
+    if (snapDims) return Math.min(12, Math.max(0.5, snapDims.h / snapDims.w));
     const ratios = heatmap.clicks
       .filter((c) => c.docW > 0 && c.docH > 0)
       .map((c) => c.docH / c.docW)
       .sort((a, b) => a - b);
     const median = ratios.length ? ratios[Math.floor(ratios.length / 2)] : 2.2;
     return Math.min(6, Math.max(0.7, median));
-  }, [heatmap.clicks]);
+  }, [snapDims, heatmap.clicks]);
 
   useEffect(() => {
     const el = stageRef.current;
@@ -154,8 +158,11 @@ export default function Heatmaps() {
     const host = snapHostRef.current;
     if (!host || !snapshot?.node) return;
     let cancelled = false;
+    let ro = null;
+    const timers = [];
     setSnapError(false);
     setSnapReady(false);
+    setSnapDims(null);
     (async () => {
       try {
         const { rebuildIntoSandboxedIframe, createCache, createMirror } = await import(
@@ -163,12 +170,38 @@ export default function Heatmaps() {
         );
         if (cancelled) return;
         host.innerHTML = "";
-        rebuildIntoSandboxedIframe(snapshot.node, {
+        const { iframe } = rebuildIntoSandboxedIframe(snapshot.node, {
           root: host,
           cache: createCache(),
           mirror: createMirror(),
           iframeAttributes: { title: "Page snapshot", scrolling: "no" },
         });
+        const width = snapshot.width || 1280;
+        iframe.style.width = `${width}px`;
+        const doc = iframe.contentDocument;
+        // Lazy images never intersect the viewport of a scaled-down iframe,
+        // so they'd stay blank without this.
+        doc
+          ?.querySelectorAll("img[loading]")
+          .forEach((img) => img.removeAttribute("loading"));
+        // The document reflows as its stylesheets and images arrive; keep
+        // re-measuring so the stage settles on the true page height.
+        const measure = () => {
+          if (cancelled || !doc) return;
+          const h = Math.max(
+            doc.documentElement?.scrollHeight || 0,
+            doc.body?.scrollHeight || 0,
+          );
+          if (h > 100) {
+            setSnapDims((prev) => (prev?.h === h ? prev : { w: width, h }));
+          }
+        };
+        measure();
+        for (const ms of [300, 1000, 2500, 5000]) timers.push(setTimeout(measure, ms));
+        if (doc?.body && typeof ResizeObserver !== "undefined") {
+          ro = new ResizeObserver(measure);
+          ro.observe(doc.body);
+        }
         setSnapReady(true);
       } catch (e) {
         console.error("[heatmap] snapshot rebuild failed:", e);
@@ -177,23 +210,26 @@ export default function Heatmaps() {
     })();
     return () => {
       cancelled = true;
+      timers.forEach(clearTimeout);
+      ro?.disconnect();
     };
   }, [snapshot]);
 
   // Snapshot geometry: lay the iframe out at the recorded viewport width and
-  // scale it down to the stage, so clicks land where they happened.
-  const snapW = snapshot?.width || 1280;
+  // full measured height, then scale it to the stage. Because the stage's
+  // aspect comes from the same measurement, background and stage stay in sync.
+  const snapW = snapDims?.w || snapshot?.width || 1280;
   const snapScale = stageW / snapW;
   useEffect(() => {
     const iframe = snapHostRef.current?.querySelector("iframe");
     if (!iframe) return;
     iframe.style.width = `${snapW}px`;
-    iframe.style.height = `${Math.ceil(stageH / snapScale)}px`;
+    iframe.style.height = `${snapDims ? snapDims.h : Math.ceil(stageH / snapScale)}px`;
     iframe.style.transform = `scale(${snapScale})`;
     iframe.style.transformOrigin = "top left";
     iframe.style.border = "none";
     iframe.style.pointerEvents = "none";
-  }, [snapReady, snapW, snapScale, stageH]);
+  }, [snapReady, snapDims, snapW, snapScale, stageH]);
 
   const setParam = (patch) => {
     const next = new URLSearchParams(searchParams);
