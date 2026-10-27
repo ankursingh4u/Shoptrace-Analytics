@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLoaderData, useSearchParams } from "react-router";
 import { Page } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
-import { getHeatmapData, getPageSnapshot, getTrackedPages } from "../lib/analytics.server";
+import { getHeatmapData, getTrackedPages } from "../lib/analytics.server";
 
 export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
@@ -12,11 +12,8 @@ export const loader = async ({ request }) => {
     : 30;
   const pages = await getTrackedPages(session.shop, days);
   const path = url.searchParams.get("path") || pages[0]?.path || "/";
-  const [heatmap, snapshot] = await Promise.all([
-    getHeatmapData(session.shop, path, days),
-    getPageSnapshot(session.shop, path),
-  ]);
-  return { pages, path, days, heatmap, snapshot };
+  const heatmap = await getHeatmapData(session.shop, path, days);
+  return { pages, path, days, heatmap };
 };
 
 // Classic thermal ramp for click density — a sequential multi-stop scale where
@@ -88,15 +85,36 @@ function drawScroll(canvas, scrollReach, width, height) {
 }
 
 export default function Heatmaps() {
-  const { pages, path, days, heatmap, snapshot } = useLoaderData();
+  const { pages, path, days, heatmap } = useLoaderData();
   const [searchParams, setSearchParams] = useSearchParams();
   const [mode, setMode] = useState("clicks");
   const stageRef = useRef(null);
   const canvasRef = useRef(null);
   const snapHostRef = useRef(null);
+  // undefined = loading, null = no snapshot available, object = ready to render
+  const [snapshot, setSnapshot] = useState(undefined);
   const [snapError, setSnapError] = useState(false);
   const [snapReady, setSnapReady] = useState(false);
   const [stageW, setStageW] = useState(1000);
+
+  // The snapshot is fetched separately (App Bridge adds the session token to
+  // same-origin fetches) so the multi-megabyte DOM never bloats the document.
+  useEffect(() => {
+    let cancelled = false;
+    setSnapshot(undefined);
+    fetch(`/app/heatmaps/snapshot?path=${encodeURIComponent(path)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled) setSnapshot(d?.node ? d : null);
+      })
+      .catch((e) => {
+        console.error("[heatmap] snapshot fetch failed:", e);
+        if (!cancelled) setSnapshot(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [path]);
 
   // Median captured document shape decides the stage's aspect ratio so the
   // normalised click coordinates land roughly where they happened.
@@ -253,8 +271,9 @@ export default function Heatmaps() {
             ) : (
               <div className="st-snap-empty" style={{ height: stageH }}>
                 <p>
-                  No page snapshot captured yet — the background appears after a
-                  recorded visitor session on this page.
+                  {snapshot === undefined && !snapError
+                    ? "Loading page snapshot…"
+                    : "No page snapshot captured yet — the background appears after a recorded visitor session on this page."}
                 </p>
               </div>
             )}
