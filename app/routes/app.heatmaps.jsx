@@ -179,11 +179,20 @@ export default function Heatmaps() {
         const width = snapshot.width || 1280;
         iframe.style.width = `${width}px`;
         const doc = iframe.contentDocument;
-        // Lazy images never intersect the viewport of a scaled-down iframe,
-        // so they'd stay blank without this.
-        doc
-          ?.querySelectorAll("img[loading]")
-          .forEach((img) => img.removeAttribute("loading"));
+        if (doc) {
+          // rrweb rebuilds <script> as <noscript>, and scripting is disabled
+          // in the sandboxed iframe, so browsers would RENDER that content
+          // ("SCRIPT_PLACEHOLDER", JSON blobs). rrweb's player hides it the
+          // same way.
+          const style = doc.createElement("style");
+          style.textContent = "noscript{display:none!important}";
+          (doc.head || doc.documentElement).appendChild(style);
+          // Lazy images never intersect the viewport of a scaled-down
+          // iframe, so they'd stay blank without this.
+          doc
+            .querySelectorAll("img[loading]")
+            .forEach((img) => img.removeAttribute("loading"));
+        }
         // The document reflows as its stylesheets and images arrive; keep
         // re-measuring so the stage settles on the true page height.
         const measure = () => {
