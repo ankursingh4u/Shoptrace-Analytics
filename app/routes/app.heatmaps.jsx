@@ -177,7 +177,9 @@ export default function Heatmaps() {
           iframeAttributes: { title: "Page snapshot", scrolling: "no" },
         });
         const width = snapshot.width || 1280;
+        const vpH = snapshot.height || 900;
         iframe.style.width = `${width}px`;
+        iframe.style.height = `${vpH}px`;
         const doc = iframe.contentDocument;
         if (doc) {
           // rrweb rebuilds <script> as <noscript>, and scripting is disabled
@@ -194,13 +196,20 @@ export default function Heatmaps() {
             .forEach((img) => img.removeAttribute("loading"));
         }
         // The document reflows as its stylesheets and images arrive; keep
-        // re-measuring so the stage settles on the true page height.
+        // re-measuring so the stage settles on the true page height. Themes
+        // that scroll an inner container clip html/body scrollHeight, so the
+        // deepest bottom edge of laid-out content is measured too.
         const measure = () => {
-          if (cancelled || !doc) return;
-          const h = Math.max(
-            doc.documentElement?.scrollHeight || 0,
-            doc.body?.scrollHeight || 0,
-          );
+          if (cancelled || !doc?.body) return;
+          const win = iframe.contentWindow;
+          let h = 0;
+          doc.body.querySelectorAll("*").forEach((el) => {
+            if (!el.getClientRects().length) return;
+            if (win && win.getComputedStyle(el).position === "fixed") return;
+            const b = el.getBoundingClientRect().bottom + (win?.scrollY || 0);
+            if (b > h && b < 200000) h = b;
+          });
+          h = Math.ceil(Math.max(h, vpH));
           if (h > 100) {
             setSnapDims((prev) => (prev?.h === h ? prev : { w: width, h }));
           }
@@ -233,12 +242,14 @@ export default function Heatmaps() {
     const iframe = snapHostRef.current?.querySelector("iframe");
     if (!iframe) return;
     iframe.style.width = `${snapW}px`;
-    iframe.style.height = `${snapDims ? snapDims.h : Math.ceil(stageH / snapScale)}px`;
+    // Until the content is measured, hold the iframe at the recorded viewport
+    // height so the measurement never chases the iframe's own size.
+    iframe.style.height = `${snapDims ? snapDims.h : snapshot?.height || 900}px`;
     iframe.style.transform = `scale(${snapScale})`;
     iframe.style.transformOrigin = "top left";
     iframe.style.border = "none";
     iframe.style.pointerEvents = "none";
-  }, [snapReady, snapDims, snapW, snapScale, stageH]);
+  }, [snapReady, snapDims, snapW, snapScale, snapshot]);
 
   const setParam = (patch) => {
     const next = new URLSearchParams(searchParams);
